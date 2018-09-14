@@ -9,6 +9,9 @@
 #include "util.h"
 
 extern conn_t connection;
+int last_packet = 0;
+
+#define loss_list_add(NUM)
 
 void packet_deserialize(packet_t *packet)
 {
@@ -134,16 +137,47 @@ void packet_parse(packet_t packet)
 
         if (packet.header._head1 & 0x80000000 &&
             packet.header._head1 & 0x40000000)      /* solo packet */
+        {
+            console_log_mod("%x: solo\n", packet_get_seqnum(packet));
             recv_buffer_write(packet.data, PACKET_DATA_SIZE);
-
-        else if (packet.header._head1 & 0x40000000) /* last packet */
-            recv_buffer_write(packet.data, PACKET_DATA_SIZE);
+        }
 
         else if (packet.header._head1 & 0x80000000) /* first packet */
+        {
+            console_log_mod("%x: first\n", packet_get_seqnum(packet));
+            if (packet_get_order(packet))
+                last_packet = packet_get_seqnum(packet);
             recv_buffer_write(packet.data, -1);
+        }
 
         else                                        /* middle packet */
-            recv_buffer_write(packet.data, -1);
+        {
+            if (packet_get_order(packet)) {
+                uint32_t seqnum = packet_get_seqnum(packet);
+                if (seqnum == last_packet + 1) {
+                    console_log_mod("%x: correct\n", seqnum);
+
+                    if (packet.header._head1 & 0x40000000) /* last packet */
+                        recv_buffer_write(packet.data, PACKET_DATA_SIZE);
+                    else
+                        recv_buffer_write(packet.data, -1);
+
+                    last_packet++;
+                } else {
+                    console_log_mod("%x: loss\n", seqnum);
+                    uint32_t num = last_packet;
+                    while (num < seqnum) {
+                        packet_clear_header(packet);
+                        packet_set_ctrl(packet);
+                        packet_set_type(packet, PACKET_TYPE_NAK);
+                        packet_new(&packet, (char *) &num, sizeof(uint32_t));
+                        send_packet_buffer_write(&packet);
+                        loss_list_add(num);
+                        num++;
+                    }
+                }
+            }
+        }
     }
     return;
 }
