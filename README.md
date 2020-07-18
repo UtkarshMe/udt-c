@@ -12,6 +12,7 @@ The documentation can be found in the header files (see `include/udt.h`).
 ```bash
 make        # compile
 make clean  # cleanup
+make BUILD_TYPE='debug'  # to create dev build with symbols for gdb
 
 export LD_LIBRARY_PATH=./src/:$LD_LIBRARY_PATH  # export the library path
 
@@ -20,6 +21,12 @@ progs/client  # start the client
 
 progs/sendfile  # start the sendfile server
 progs/recvfile "file/to/get" "file/to/saveas"  # receive the file
+```
+
+##### You can also use the dockerfile!
+```bash
+docker build --tag udt .  # build the container
+docker run -it udt
 ```
 
 ### Progress
